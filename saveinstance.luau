@@ -3745,9 +3745,9 @@ end
 --- @field IsModel boolean -- Save a model (`.rbxm`/`.rbxmx`) instead of a place (`.rbxl`/`.rbxlx`). `Object` turns this on unless you set it yourself. Passing a list of Instances as an argument also turns it on. ___Default:___ false
 --- @field ShowStatus boolean -- Show a status label on the screen. It shows the size while saving, then the final size and time. ___Default:___ true
 --- @field ReadMe boolean -- Add a README script to the save. It contains save details (place ID, date, time, platform, executor, recovered scripts, warnings) and tips. ___Default:___ true
---- @field Decompile boolean -- Turn the compiled script back into source code (decompile). This replaces the `Source` of each [LuaSourceContainer] with decompiled code. If this is off, `Source` says decompiling is disabled. ___Default:___ true
+--- @field Decompile boolean -- Turn the compiled script back into source code (decompile). This replaces the `Source` of each [LuaSourceContainer] with decompiled code. If this is off, `Source` says decompiling is disabled. ___Default:___ false
 --- @field SaveBytecode boolean -- If the executor supports `getscriptbytecode`, add the compiled script data (bytecode) to `Source` as a comment. You can decompile it later. This respects `DecompileIgnore`. ___Default:___ false
---- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 10
+--- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 3
 --- @field BytecodeTimeout number -- How many seconds a `getscriptbytecode` call can take. If it takes longer, the script stops waiting and skips the bytecode for that script. Set to -1 to disable the timeout. ___Default:___ 3
 --- @field DecompileIgnore {Instance | string} | {[Instance | string]: boolean | {[string]: boolean}} -- Skip decompiling matched [Instance]s and their children. `Source` becomes a short ignored message. You can pass an [Instance], a class name, or `ClassName = {Name1, Name2}`. Set an [Instance] to `false` to skip only that instance, not its children. ___Default:___ {TextChatService}
 --- @field SourceCache {[Instance]: string} | false -- Source text to use for these scripts as-is instead of decompiling them. ___Default:___ false
@@ -3777,7 +3777,7 @@ end
 --- @field NotCreatableFixes {string} | {[string]: string | false} -- Replace a class with a class that can be created. The default replacement is `"Folder"`. A list of class names also becomes `Folder`. Built-in changes: [Player], [PlayerGui], [PlayerScripts], [TouchTransmitter], and others become `Folder`; [CloudLocalizationTable] becomes [LocalizationTable]; `Platform` becomes [Part]; `Status` becomes [Model]. Set a class to `false` to skip its replacement. ___Default:___ built-in replacements
 --- @field NilInstancesFixes {[string]: ((instance: Instance, overrides: table) -> Instance?) | false} -- Where to put objects that have no parent. For example, it puts [Animator] under an [AnimationController]. Built-in fixes exist for [Animator], [AdPortal], [Attachment], [BaseWrap], and [PackageLink]. Child classes use the parent fix ([Bone]s use the Attachment fix). Set a class to `false` to turn off its fix. ___Default:___ built-in Animator/AdPortal/Attachment/BaseWrap/PackageLink fixes
 --- @field IgnoreDefaultProperties boolean -- Skip properties that already have the default value for their class. This only affects XML output. Binary output does not use this option. ___Default:___ true
---- @field IgnorePropertiesOfNotScriptsOnScriptsMode boolean -- Only in `scripts` mode: save properties for [LuaSourceContainer]s and skip properties for all other objects. This does nothing in other modes. ___Default:___ false
+--- @field IgnorePropertiesOfNotScriptsOnScriptsMode boolean -- Only in `scripts` mode: save properties for [LuaSourceContainer]s and skip properties for all other objects. This does nothing in other modes. ___Default:___ true
 --- @field IgnoreDefaultPlayerScripts boolean -- Skip Roblox's default player scripts (`PlayerModule`, `BubbleChat`, `ChatScript`, `PlayerScriptsLoader`, `RbxCharacterSounds`). This can stop some executors from crashing during decompile. ___Default:___ false
 --- @field SaveCacheInterval number -- How much XML data the script holds in memory while saving. Lower values update the status more often but are slower. This does not write to disk. When `KillAllScripts` is on, this also sets the script timeout between 20 and 30 seconds. ___Default:___ 0x1600 * 10
 --- @field SharedBinaryStrings boolean -- Store the same binary data (meshes, images, ...) only once in the file. This makes saves with repeated data smaller. Files with all unique data can get slightly bigger. This is not an official Roblox format, but Studio can still open the file. ___Default:___ false
@@ -3909,10 +3909,10 @@ local function synsaveinstance(...)
 		Binary = true,
 		CompressionMode = false,
 		CompressionLevel = 9,
-		Decompile = true,
-		DecompileTimeout = 10,
+		Decompile = false,
+		DecompileTimeout = 3,
 		DecompileJobless = false,
-		RecoverScriptsFromAssets = true,
+		RecoverScriptsFromAssets = false,
 		-- decomptype = "",
 		scriptcache = true,
 		SaveBytecode = false,
@@ -3957,7 +3957,7 @@ local function synsaveinstance(...)
 		IgnoreDefaultProperties = true,
 		IgnoreNotArchivable = true,
 		IgnorePropertiesOfNotScriptsOnScriptsMode = false,
-		IgnoreSpecialProperties = false,
+		IgnoreSpecialProperties = true,
 
 		IsolateLocalPlayer = false, --  #service.StarterGui:GetChildren() == 0
 		IsolateLocalPlayerCharacter = false,

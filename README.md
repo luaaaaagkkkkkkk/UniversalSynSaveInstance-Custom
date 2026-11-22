@@ -19,3 +19,19 @@ A compressão fica desativada por padrão para evitar travamentos em executores 
 O módulo requer um executor compatível com `loadstring`, `game:HttpGet`, `buffer` e as APIs opcionais escolhidas. O endpoint beta `zbeta` pode responder 401 sem autorização; o script trata isso como fallback opcional e tenta os endpoints públicos/cached disponíveis.
 
 Consulte [`LICENSE`](LICENSE) para os termos e atribuições.
+
+
+## Perfil rápido e perfil completo
+
+O padrão prioriza velocidade: não faz decompilação, não recupera scripts publicados como assets e ignora propriedades ocultas do executor. Isso pode deixar `Source` sem o código original e omitir algumas propriedades especiais.
+
+Para priorizar completude em vez de velocidade:
+
+```lua
+synsaveinstance({
+    Decompile = true,
+    RecoverScriptsFromAssets = true,
+    IgnoreSpecialProperties = false,
+    DecompileTimeout = 10,
+})
+```
