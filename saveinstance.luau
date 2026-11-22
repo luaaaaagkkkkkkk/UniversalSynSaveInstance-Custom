@@ -93,7 +93,7 @@ do
 	end
 end
 
--- Detect executor APIs locally instead of downloading UniversalMethodFinder.
+-- Detect executor APIs locally instead of downloading remote helper module.
 local global_container = {
 	setrbxclipboard = setrbxclipboard,
 	gethiddenproperty = gethiddenproperty,
@@ -3321,26 +3321,34 @@ do
 					end
 				end
 				do -- ? this might happen when user is on a new version but Roblox-Client-Tracker hasn't updated version-history.json yet
-					local function fallback_channel(channel)
-						local ok, res = pcall(function()
-							return service.HttpService:JSONDecode(
-								httpGetText(
-									"https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64"
-										.. (channel and "/channel/" .. channel or "")
-									)
-							)
-						end)
-						if not ok then
-							warn("[DEBUG] Client version endpoint failed:", channel or "LIVE", tostring(res))
-							return
-						end
-						if type(res) == "table" and res.version and res.clientVersionUpload then -- just in case
+						local function fallback_version_endpoint(url)
+							local ok, res = pcall(function()
+								return service.HttpService:JSONDecode(httpGetText(url))
+							end)
+							if not ok then
+								local message = tostring(res)
+								-- A named/beta channel may return 401 without authorization; it is optional.
+								if not string.find(message, "401", 1, true) then
+									warn("[DEBUG] Client version endpoint failed:", url, message)
+								end
+								return
+							end
+							if type(res) == "table" and type(res.version) == "string"
+							and type(res.clientVersionUpload) == "string"
+						then
 							local line = '"' .. res.version .. '": "' .. res.clientVersionUpload
 							return process_line(line, true)
 						end
+						warn("[DEBUG] Client version endpoint returned an invalid response:", url)
 					end
 					if not exact_match then
-						exact_match = fallback_channel("zbeta") or fallback_channel() -- LIVE
+						-- The public v1 endpoint is Roblox's recommended alternative to v2.
+						-- Named beta channels can return HTTP 401 without beta authorization.
+						exact_match = fallback_version_endpoint(
+							"https://clientsettings.roblox.com/v1/client-version/WindowsStudio64"
+						) or fallback_version_endpoint(
+							"https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64"
+						)
 					end
 				end
 				if exact_match then
@@ -5620,8 +5628,12 @@ local function synsaveinstance(...)
 			buffer.writestring(head, 0, name)
 
 			if compress then
-				local dataStr = compress(chunkBuf:tostring())
-				if dataStr and #dataStr < uncompressedLen then
+				-- Always pass a string to the compressor; StreamBuffer has no tostring method.
+				local dataStr = compress(buffer.readstring(chunkBuf.buf, 0, uncompressedLen))
+				if type(dataStr) == "buffer" then
+					dataStr = buffer.tostring(dataStr)
+				end
+				if type(dataStr) == "string" and #dataStr < uncompressedLen then
 					buffer.writeu32(head, 4, #dataStr)
 					buffer.writeu32(head, 8, uncompressedLen)
 					return { buf = head, len = 16, str = dataStr }

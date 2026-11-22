@@ -15,8 +15,11 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-CLIENT_VERSION_URL = (
-    "https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64"
+CLIENT_VERSION_URLS = (
+    # Roblox documents the v1 endpoint as the recommended alternative to v2.
+    "https://clientsettings.roblox.com/v1/client-version/WindowsStudio64",
+    # Keep the public v2 endpoint as a compatibility fallback.
+    "https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64",
 )
 DEPLOY_HISTORY_URL = "https://setup.rbxcdn.com/DeployHistory.txt"
 SETUP_BASE_URL = "https://setup.rbxcdn.com"
@@ -92,20 +95,21 @@ def get_version_candidates(session: requests.Session) -> list[str]:
     versions: list[str] = []
     errors: list[str] = []
 
-    try:
-        version_data = get_response_json(session, CLIENT_VERSION_URL)
-        current_version = extract_version_hash(
-            version_data.get("clientVersionUpload")
-        )
-        if current_version:
-            versions.append(current_version)
-        else:
+    for version_url in CLIENT_VERSION_URLS:
+        try:
+            version_data = get_response_json(session, version_url)
+            current_version = extract_version_hash(
+                version_data.get("clientVersionUpload")
+            )
+            if current_version:
+                versions.append(current_version)
+                break
             errors.append(
-                "O endpoint de versão do Studio não retornou "
+                f"O endpoint {version_url} não retornou "
                 "um clientVersionUpload válido."
             )
-    except (requests.RequestException, ValueError) as exc:
-        errors.append(f"Endpoint de versão do Studio: {exc}")
+        except (requests.RequestException, ValueError) as exc:
+            errors.append(f"Endpoint de versão do Studio ({version_url}): {exc}")
 
     # DeployHistory is a fallback only; the current Studio endpoint above is preferred.
     try:

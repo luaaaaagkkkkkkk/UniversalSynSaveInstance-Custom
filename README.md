@@ -1,23 +1,8 @@
 # UniversalSynSaveInstance — versão própria
 
-Esta é uma versão publicada no GitHub do proprietário, com o serializador e as dependências principais autocontidos em `saveinstance.luau`.
+Versão própria com `loadstring`, dependências principais locais e correções de compatibilidade para compressão e atualização do API dump.
 
-## Uso via `loadstring`
-
-```lua
-local synsaveinstance = loadstring(
-    game:HttpGet(
-        "https://raw.githubusercontent.com/luaaaaagkkkkkkk/UniversalSynSaveInstance-Custom/main/saveinstance.luau",
-        true
-    ),
-    "saveinstance"
-)()
-
-local SaveInstanceOptions = {}
-synsaveinstance(SaveInstanceOptions)
-```
-
-Também é possível passar opções aceitas pelo módulo:
+## Uso
 
 ```lua
 local synsaveinstance = loadstring(game:HttpGet(
@@ -25,19 +10,10 @@ local synsaveinstance = loadstring(game:HttpGet(
     true
 ), "saveinstance")()
 
-synsaveinstance({
-    SafeMode = true,
-    DecompileTimeout = 15,
-    SaveBytecode = true,
-})
+local SaveInstanceOptions = {}
+synsaveinstance(SaveInstanceOptions)
 ```
 
-O arquivo `saveinstance.lua` é apenas um wrapper de compatibilidade; para `loadstring`, use diretamente `saveinstance.luau`.
+O módulo requer um executor compatível com `loadstring`, `game:HttpGet`, `buffer` e as APIs opcionais escolhidas. O endpoint beta `zbeta` pode responder 401 sem autorização; o script trata isso como fallback opcional e tenta os endpoints públicos/cached disponíveis.
 
-## Observações
-
-O script requer um executor compatível com `loadstring`, `game:HttpGet` e as APIs opcionais usadas pelas opções escolhidas. A disponibilidade de decompilação, propriedades ocultas, clipboard e gravação de arquivos depende do executor.
-
-## Licença
-
-Consulte [`LICENSE`](LICENSE). Este projeto mantém os avisos e atribuições exigidos pela licença original.
+Consulte [`LICENSE`](LICENSE) para os termos e atribuições.
