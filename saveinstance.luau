@@ -65,14 +65,19 @@ do
 	function StreamBuffer.new(capacity)
 		return setmetatable({ buf = buffer.create(math.max(capacity or 0, 1)), len = 0 }, { __index = StreamBufferMethods })
 	end
+	function StreamBufferMethods:reserve(size)
+		local required = self.len + size
+		if required <= buffer.len(self.buf) then
+			return
+		end
+		local nextBuf = buffer.create(math.max(required, buffer.len(self.buf) * 2))
+		buffer.copy(nextBuf, 0, self.buf, 0, buffer.len(self.buf))
+		self.buf = nextBuf
+	end
 	function StreamBufferMethods:allocRegion(size)
 		local offset = self.len
+		self:reserve(size)
 		self.len += size
-		if self.len > buffer.len(self.buf) then
-			local nextBuf = buffer.create(math.max(self.len, buffer.len(self.buf) * 2))
-			buffer.copy(nextBuf, 0, self.buf, 0, buffer.len(self.buf))
-			self.buf = nextBuf
-		end
 		return offset
 	end
 	function StreamBufferMethods:writeu8(value)
