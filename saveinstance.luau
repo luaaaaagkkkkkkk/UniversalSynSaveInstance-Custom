@@ -3907,7 +3907,7 @@ local function synsaveinstance(...)
 	local OPTIONS = {
 		mode = "optimized",
 		Binary = true,
-		CompressionMode = "zstd",
+		CompressionMode = false,
 		CompressionLevel = 9,
 		Decompile = true,
 		DecompileTimeout = 10,
@@ -5613,6 +5613,9 @@ local function synsaveinstance(...)
 			for i = 1, n do
 				yieldIfDue()
 				local raw = readProperty(objs[i], prop)
+				if StatusText and (i == 1 or i == n or i % 32 == 0) then
+					StatusText.Text = "Reading " .. prop.Name .. " [" .. i .. "/" .. n .. "] | Size: " .. get_size_format()
+				end
 				if raw == __BREAK then
 					return nil, i
 				end
@@ -5667,6 +5670,19 @@ local function synsaveinstance(...)
 		local chunks, propChunks = {}, {}
 
 		local lastStatus = 0
+		local lastProgress = 0
+
+		local function updateProgress(message, force)
+			if not StatusText then
+				return
+			end
+			local now = os.clock()
+			if force or now - lastProgress >= 0.5 then
+				lastProgress = now
+				StatusText.Text = message .. " | Size: " .. get_size_format()
+				yieldFrame()
+			end
+		end
 
 		local function emit(chunk)
 			chunks[#chunks + 1] = chunk
@@ -5676,8 +5692,7 @@ local function synsaveinstance(...)
 				local now = os.clock()
 				if now - lastStatus > 1 then
 					lastStatus = now
-					StatusText.Text = "Saving.. Size: " .. get_size_format()
-					yieldFrame()
+					updateProgress("Saving..", true)
 				end
 			end
 		end
@@ -5714,6 +5729,7 @@ local function synsaveinstance(...)
 			local entry = entries[objs[1]]
 
 			local class = entry.class
+			updateProgress("Dumping " .. class .. " (" .. n .. ")", true)
 
 			local instBuf = StreamBuffer.new(64 + 4 * n)
 			instBuf:writeu32(classId)
@@ -5763,6 +5779,7 @@ local function synsaveinstance(...)
 			elseif not skipProps then
 				for _, prop in GetInheritedProps(entry.propClass) do
 					local propName = prop.Name
+					updateProgress("Reading " .. class .. "." .. propName, false)
 					if IgnoreProperties[propName] then
 						continue
 					end

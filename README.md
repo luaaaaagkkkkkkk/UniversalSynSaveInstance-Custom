@@ -1,6 +1,6 @@
 # UniversalSynSaveInstance — versão própria
 
-Versão própria com `loadstring`, dependências principais locais e correções de compatibilidade para compressão e atualização do API dump.
+Versão própria com `loadstring`, dependências principais locais, progresso detalhado na UI e correções de compatibilidade para compressão e atualização do API dump.
 
 ## Uso
 
@@ -13,6 +13,8 @@ local synsaveinstance = loadstring(game:HttpGet(
 local SaveInstanceOptions = {}
 synsaveinstance(SaveInstanceOptions)
 ```
+
+A compressão fica desativada por padrão para evitar travamentos em executores que implementam zstd/lz4 de forma instável; ela pode ser ativada explicitamente com `CompressionMode = "zstd"` ou `CompressionMode = "lz4"`.
 
 O módulo requer um executor compatível com `loadstring`, `game:HttpGet`, `buffer` e as APIs opcionais escolhidas. O endpoint beta `zbeta` pode responder 401 sem autorização; o script trata isso como fallback opcional e tenta os endpoints públicos/cached disponíveis.
 
