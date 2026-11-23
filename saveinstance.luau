@@ -1,6 +1,7 @@
 --!native
 --!optimize 2
 --!divine-intellect
+-- USSI_BUILD_ID: 2026.11.23-complete-dump-1
 -- https://discord.gg/wx4ThpAsmw
 
 local function string_find(s, pattern, init)
@@ -96,6 +97,11 @@ do
 		local offset = self:allocRegion(#value)
 		buffer.writestring(self.buf, offset, value)
 	end
+	-- Compatibility method for older serializer paths and integrations.
+	-- Read only written bytes; buffer capacity can exceed self.len.
+	function StreamBufferMethods:tostring()
+		return buffer.readstring(self.buf, 0, self.len)
+	end
 	function StreamBufferMethods:writeLenString(value)
 		self:writeu32(#value)
 		self:writestring(value)
@@ -172,6 +178,7 @@ end) then
 end
 
 local CLIENT_VERSION = tonumber(string.match(FULL_VERSION, "%d+%.(%d+)")) or 9e9
+warn("[USSI] Build 2026.11.23-complete-dump-1 loaded | Studio: " .. tostring(FULL_VERSION))
 local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
 local USSI_FOLDER = "ussi_cache/"
 
@@ -3226,12 +3233,24 @@ do
 		-- ! exact version match is preferred, mismatched dump versions might result in saveinstance trying to save properties that your client doesn't have yet
 		local APIDUMP_FETCHERS = {
 			[1] = function()
-				local res = readfile(FILE_NAME)
-				if res and res ~= "" then
-					return service.HttpService:JSONDecode(res)[FULL_VERSION]
+				if type(readfile) ~= "function" then
+					return nil
 				end
+				if type(isfile) == "function" and not isfile(FILE_NAME) then
+					return nil
+				end
+				local res = readfile(FILE_NAME)
+				if type(res) ~= "string" or res == "" then
+					return nil
+				end
+				local decoded = service.HttpService:JSONDecode(res)
+				if type(decoded) ~= "table" then
+					return nil
+				end
+				local cached = decoded[FULL_VERSION]
+				return type(cached) == "table" and #cached > 0 and cached or nil
 			end,
-			[2] = function() -- version-history.json -> exact_match -> zbeta -> LIVE -> sibling major matches
+			[2] = function() -- version-history.json -> current public endpoint -> recent history fallbacks
 				local client_version_str = tostring(CLIENT_VERSION)
 				local dump
 				local matching_versions, matched, is_matched, exact_match = {}, {}
@@ -3262,13 +3281,13 @@ do
 					for _, class in classes do
 						if type(class) == "table" and type(class.Members) == "table" then
 							for _, member in class.Members do
-								if type(member) == "table" and member.MemberType == "Property" then
-									return member.Default ~= nil
+								if type(member) == "table" and member.MemberType == "Property" and member.Default ~= nil then
+									return true
 								end
 							end
 						end
 					end
-					return false -- no properties found at all; treat as inconclusive/not full
+					return false -- no property with a default value was found
 				end
 
 				local function tryFetchDump(url)
@@ -3329,39 +3348,55 @@ do
 						warn("[DEBUG] Studio version-history request failed:", tostring(r))
 					end
 				end
-				do -- ? this might happen when user is on a new version but Roblox-Client-Tracker hasn't updated version-history.json yet
-						local function fallback_version_endpoint(url)
-							local ok, res = pcall(function()
-								return service.HttpService:JSONDecode(httpGetText(url))
-							end)
-							if not ok then
-								local message = tostring(res)
-								-- A named/beta channel may return 401 without authorization; it is optional.
-								if not string.find(message, "401", 1, true) then
-									warn("[DEBUG] Client version endpoint failed:", url, message)
-								end
-								return
+				do -- Public client-version endpoints; no named beta channel is required.
+					local function fallback_version_endpoint(url)
+						local ok, res = pcall(function()
+							return service.HttpService:JSONDecode(httpGetText(url))
+						end)
+						if not ok then
+							local message = tostring(res)
+							if not string.find(message, "401", 1, true) then
+								warn("[DEBUG] Public client-version endpoint failed:", url, message)
 							end
-							if type(res) == "table" and type(res.version) == "string"
-							and type(res.clientVersionUpload) == "string"
-						then
-							local line = '"' .. res.version .. '": "' .. res.clientVersionUpload
-							return process_line(line, true)
+							return nil
 						end
-						warn("[DEBUG] Client version endpoint returned an invalid response:", url)
+						if type(res) ~= "table" then
+							warn("[DEBUG] Client-version endpoint returned non-object JSON:", url)
+							return nil
+						end
+						local upload = res.clientVersionUpload
+						if type(upload) == "string" and string.match(upload, "^version%-%w+$") then
+							return upload
+						end
+						-- Compatibility fallback for a payload with a parseable version field.
+						if type(res.version) == "string" then
+							local line = '"' .. res.version .. '": "' .. tostring(upload or "")
+							local parsed = process_line(line, true)
+							if parsed then
+								return parsed
+							end
+						end
+						warn("[DEBUG] Client-version endpoint returned no valid upload hash:", url)
+						return nil
 					end
-					if not exact_match then
-						-- The public v1 endpoint is Roblox's recommended alternative to v2.
-						-- Named beta channels can return HTTP 401 without beta authorization.
-						exact_match = fallback_version_endpoint(
-							"https://clientsettings.roblox.com/v1/client-version/WindowsStudio64"
-						) or fallback_version_endpoint(
-							"https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64"
-						)
+					local endpoint_version_hash = fallback_version_endpoint(
+						"https://clientsettings.roblox.com/v1/client-version/WindowsStudio64"
+					) or fallback_version_endpoint(
+						"https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64"
+					)
+					local preferred_hashes = {}
+					if exact_match then
+						table.insert(preferred_hashes, exact_match)
 					end
-				end
-				if exact_match then
-					dump = fetchFullApiDump(exact_match)
+					if endpoint_version_hash and endpoint_version_hash ~= exact_match then
+						table.insert(preferred_hashes, endpoint_version_hash)
+					end
+					for _, version_hash in preferred_hashes do
+						dump = fetchFullApiDump(version_hash)
+						if dump then
+							break
+						end
+					end
 				end
 				if not dump then
 					for _, version_hash in matching_versions do -- TODO ideally match nearest by Commit segment of version(), new>old
@@ -5634,27 +5669,31 @@ local function synsaveinstance(...)
 			return vals
 		end
 
+		local compressionWarningIssued = false
 		local function buildChunk(name, chunkBuf, compress)
 			local uncompressedLen = chunkBuf.len
 			local head = buffer.create(16)
 			buffer.writestring(head, 0, name)
 
 			if compress then
-				-- Always pass a string to the compressor; StreamBuffer has no tostring method.
-				local dataStr = compress(buffer.readstring(chunkBuf.buf, 0, uncompressedLen))
-				if type(dataStr) == "buffer" then
-					dataStr = buffer.tostring(dataStr)
+				local rawData = chunkBuf:tostring()
+				local ok, data = pcall(compress, rawData)
+				if ok and type(data) == "buffer" then
+					local converted, result = pcall(buffer.tostring, data)
+					data = converted and result or nil
 				end
-				if type(dataStr) == "string" and #dataStr < uncompressedLen then
-					buffer.writeu32(head, 4, #dataStr)
+				if ok and type(data) == "string" and #data > 0 and #data < uncompressedLen then
+					buffer.writeu32(head, 4, #data)
 					buffer.writeu32(head, 8, uncompressedLen)
-					return { buf = head, len = 16, str = dataStr }
+					return { buf = head, len = 16, str = data }
+				elseif not ok and not compressionWarningIssued then
+					compressionWarningIssued = true
+					warn("[USSI] Compression failed; continuing with uncompressed chunks:", tostring(data))
 				end
 			end
 
 			-- compressedLength and reserved remain zero in the fresh header.
 			buffer.writeu32(head, 8, uncompressedLen)
-
 			return {
 				buf = head,
 				len = 16,

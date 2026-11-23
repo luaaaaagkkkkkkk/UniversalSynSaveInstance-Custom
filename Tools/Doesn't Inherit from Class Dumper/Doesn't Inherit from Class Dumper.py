@@ -1,6 +1,12 @@
-import requests
+from __future__ import annotations
+
 import os
 import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from roblox_api import fetch_api_dump
 
 
 def array_to_dictionary(table, hybrid_mode=None):
@@ -43,33 +49,12 @@ s = "\n"
 
 
 def api():
-
-    deploy_history_url = "https://setup.rbxcdn.com/DeployHistory.txt"
-    deploy_history = requests.get(deploy_history_url).text
-
-    lines = deploy_history.splitlines()
-
-    for line in reversed(lines):
-
-        match = re.search(r"(version-[^\s]+)", line)
-
-        if match:
-            version_hash = match.group(1)
-
-            api_dump_url = f"https://setup.rbxcdn.com/{version_hash}-Full-API-Dump.json"
-
-            try:
-                response = requests.get(api_dump_url)
-                response.raise_for_status()
-                return response
-
-            except requests.RequestException as e:
-                print(f"Error fetching API dump for {version_hash}: {e}")
+    return fetch_api_dump(prefer_full=True)
 
 
 def fetch_api():
     response = api()
-    api_classes = response.json()["Classes"]
+    api_classes = response["Classes"]
     class_list = {cls["Name"]: cls for cls in api_classes}
 
     global s
