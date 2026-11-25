@@ -6,7 +6,7 @@ Versão própria com `loadstring`, dependências principais locais, progresso de
 
 ```lua
 local synsaveinstance = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/luaaaaagkkkkkkk/UniversalSynSaveInstance-Custom/main/saveinstance.lua?build=2026.11.23-complete-dump-1",
+    "https://raw.githubusercontent.com/luaaaaagkkkkkkk/UniversalSynSaveInstance-Custom/main/saveinstance.lua?",
     true
 ), "saveinstance-launcher")()
 
@@ -51,7 +51,7 @@ Nenhum executor consegue garantir literalmente 100% do conteúdo: scripts server
 
 O arquivo `saveinstance.lua` é um launcher: ele baixa `saveinstance.luau` do repositório GitHub configurado. Apenas extrair este ZIP não altera uma cópia que já esteja publicada no GitHub. Para usar esta correção pelo launcher, publique/substitua no repositório os arquivos `saveinstance.lua` e `saveinstance.luau` desta versão. O launcher usa um identificador de build e interrompe a execução com uma mensagem explícita caso o módulo remoto ainda seja antigo ou esteja em cache.
 
-Ao carregar o módulo corrigido, o console mostra `[USSI] Build 2026.11.23-complete-dump-1 loaded`. Se essa linha não aparecer, a execução ainda está usando outra cópia do script.
+Ao carregar o módulo corrigido, o console mostra uma mensagem `[USSI] Build ... loaded`. Se essa linha não aparecer, a execução ainda está usando outra cópia do script.
 
 ## Correções desta revisão
 
