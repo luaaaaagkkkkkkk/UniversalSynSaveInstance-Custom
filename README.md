@@ -23,7 +23,7 @@ Consulte [`LICENSE`](LICENSE) para os termos e atribuições.
 
 ## Perfil rápido e perfil completo
 
-O padrão prioriza velocidade: não faz decompilação, não recupera scripts publicados como assets e ignora propriedades ocultas do executor. Isso pode deixar `Source` sem o código original e omitir algumas propriedades especiais.
+O padrão agora tenta decompilar os scripts e recuperar fontes publicadas como assets. O cache por bytecode evita decompilar o mesmo código duas vezes. Para máxima velocidade, você pode passar `Decompile = false`.
 
 Para priorizar completude em vez de velocidade, use este perfil explícito. Ele evita a lista padrão de exclusões, tenta decompilar todos os scripts acessíveis, recupera fontes publicadas como assets, salva bytecode como fallback e lê propriedades especiais:
 ```lua
@@ -44,7 +44,7 @@ synsaveinstance({
     CompressionMode = false,
 })
 ```
-O cache usa o bytecode como chave: scripts idênticos são decompilados apenas uma vez, reduzindo o tempo em jogos com cópias do mesmo script. Para máxima velocidade, mantenha o perfil padrão (`Decompile = false`).
+O cache usa o bytecode como chave: scripts idênticos são decompilados apenas uma vez, reduzindo o tempo em jogos com cópias do mesmo script. Para máxima velocidade, use `synsaveinstance({ Decompile = false, RecoverScriptsFromAssets = false, SaveBytecode = false })`.
 
 Nenhum executor consegue garantir literalmente 100% do conteúdo: scripts server-side filtrados pelo Roblox, propriedades protegidas, instâncias não replicadas e APIs ausentes do executor continuam fora do alcance. Nesses casos o arquivo registra um comentário explicando a limitação ou inclui bytecode quando `SaveBytecode` estiver disponível.
 ## Atualização obrigatória do arquivo remoto

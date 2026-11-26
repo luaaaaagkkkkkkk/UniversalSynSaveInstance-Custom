@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 --!divine-intellect
--- USSI_BUILD_ID: 2026.11.23-complete-dump-1
+-- USSI_BUILD_ID: 2026.11.25-decompile-cache-1
 -- https://discord.gg/wx4ThpAsmw
 
 local function string_find(s, pattern, init)
@@ -178,7 +178,7 @@ end) then
 end
 
 local CLIENT_VERSION = tonumber(string.match(FULL_VERSION, "%d+%.(%d+)")) or 9e9
-warn("[USSI] Build 2026.11.23-complete-dump-1 loaded | Studio: " .. tostring(FULL_VERSION))
+warn("[USSI] Build 2026.11.25-decompile-cache-1 loaded | Studio: " .. tostring(FULL_VERSION))
 local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
 local USSI_FOLDER = "ussi_cache/"
 
@@ -3789,11 +3789,11 @@ end
 --- @field IsModel boolean -- Save a model (`.rbxm`/`.rbxmx`) instead of a place (`.rbxl`/`.rbxlx`). `Object` turns this on unless you set it yourself. Passing a list of Instances as an argument also turns it on. ___Default:___ false
 --- @field ShowStatus boolean -- Show a status label on the screen. It shows the size while saving, then the final size and time. ___Default:___ true
 --- @field ReadMe boolean -- Add a README script to the save. It contains save details (place ID, date, time, platform, executor, recovered scripts, warnings) and tips. ___Default:___ true
---- @field Decompile boolean -- Turn the compiled script back into source code (decompile). This replaces the `Source` of each [LuaSourceContainer] with decompiled code. If this is off, `Source` says decompiling is disabled. ___Default:___ false
+--- @field Decompile boolean -- Turn the compiled script back into source code (decompile). This replaces the `Source` of each [LuaSourceContainer] with decompiled code. If this is off, `Source` says decompiling is disabled. ___Default:___ true
 --- @field SaveBytecode boolean -- If the executor supports `getscriptbytecode`, add the compiled script data (bytecode) to `Source` as a comment. You can decompile it later. This respects `DecompileIgnore`. ___Default:___ false
---- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 3
---- @field BytecodeTimeout number -- How many seconds a `getscriptbytecode` call can take. If it takes longer, the script stops waiting and skips the bytecode for that script. Set to -1 to disable the timeout. ___Default:___ 3
---- @field DecompileIgnore {Instance | string} | {[Instance | string]: boolean | {[string]: boolean}} -- Skip decompiling matched [Instance]s and their children. `Source` becomes a short ignored message. You can pass an [Instance], a class name, or `ClassName = {Name1, Name2}`. Set an [Instance] to `false` to skip only that instance, not its children. ___Default:___ {TextChatService}
+--- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 10
+--- @field BytecodeTimeout number -- How many seconds a `getscriptbytecode` call can take. If it takes longer, the script stops waiting and skips the bytecode for that script. Set to -1 to disable the timeout. ___Default:___ 5
+--- @field DecompileIgnore {Instance | string} | {[Instance | string]: boolean | {[string]: boolean}} -- Skip decompiling matched [Instance]s and their children. `Source` becomes a short ignored message. You can pass an [Instance], a class name, or `ClassName = {Name1, Name2}`. Set an [Instance] to `false` to skip only that instance, not its children. ___Default:___ {}
 --- @field SourceCache {[Instance]: string} | false -- Source text to use for these scripts as-is instead of decompiling them. ___Default:___ false
 --- @field DecompileJobless boolean -- Only use scripts that are already in the decompile cache. Missing scripts get a short not-found message. This turns on `scriptcache`. ___Default:___ false
 --- @field scriptcache boolean -- If the executor supports `getscriptbytecode`, cache decompiled code. This avoids decompiling the same script twice. The cache stays after the script reloads. ___Default:___ true
@@ -3953,14 +3953,14 @@ local function synsaveinstance(...)
 		Binary = true,
 		CompressionMode = false,
 		CompressionLevel = 9,
-		Decompile = false,
-		DecompileTimeout = 3,
+		Decompile = true,
+		DecompileTimeout = 10,
 		DecompileJobless = false,
-		RecoverScriptsFromAssets = false,
+		RecoverScriptsFromAssets = true,
 		-- decomptype = "",
 		scriptcache = true,
-		SaveBytecode = false,
-		BytecodeTimeout = 3,
+		SaveBytecode = true,
+		BytecodeTimeout = 5,
 		SourceCache = false,
 
 		__DEBUG_MODE = false,
@@ -3968,11 +3968,7 @@ local function synsaveinstance(...)
 		Callback = false,
 		CopyToClipboard = false, -- Description: If set to true, the serialized data will be set to the clipboard, which can be later pasted into studio easily.
 
-		DecompileIgnore = {
-			-- "Chat",
-			"TextChatService",
-			ModuleScript = nil,
-		},
+		DecompileIgnore = {},
 		IgnoreDefaultPlayerScripts = false,
 
 		IgnoreProperties = {},
@@ -4900,11 +4896,21 @@ local function synsaveinstance(...)
 	if getscriptbytecode then
 		getbytecode = makeTimeoutHandler(OPTIONS.BytecodeTimeout, getscriptbytecode) -- ? Solara fix
 	end
+	-- Keep the bytecode obtained during decompilation so SaveBytecode does not
+	-- call the executor API a second time for the same script.
+	local bytecodeByScript = setmetatable({}, { __mode = "k" })
 
 	local SaveBytecode
 	if OPTIONS.SaveBytecode and getscriptbytecode then
 		SaveBytecode = function(script)
-			local s, bytecode = getbytecode(script)
+			local bytecode = bytecodeByScript[script]
+			local s = bytecode ~= nil
+			if not s then
+				s, bytecode = getbytecode(script)
+				if s and bytecode and bytecode ~= "" then
+					bytecodeByScript[script] = bytecode
+				end
+			end
 
 			if s and bytecode and bytecode ~= "" then
 				return "-- Bytecode (Base64):\n-- " .. base64encode(bytecode) .. "\n\n"
@@ -4931,6 +4937,7 @@ local function synsaveinstance(...)
 					if not bytecode or bytecode == "" then
 						return "-- The Script is Empty"
 					end
+					bytecodeByScript[script] = bytecode
 					cached = ldeccache[bytecode]
 				else
 					bytecode = nil
