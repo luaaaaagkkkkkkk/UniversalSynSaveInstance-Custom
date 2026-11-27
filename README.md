@@ -41,11 +41,10 @@ synsaveinstance({
     IgnoreDefaultProperties = false,
     IgnoreNotArchivable = false,
     SaveNotCreatable = true,
-    NilInstances = true,
     CompressionMode = false,
 })
 ```
-Para reduzir o uso de memória no mobile, o bytecode não é anexado ao `Source`, o cache fica desligado por padrão, o render 3D é pausado durante o save e fontes acima de 2 MB são limitadas. O dump libera memória entre scripts e pausa a decompilação após três falhas consecutivas. Se quiser cache temporário, use `scriptcache = true`; ele é limitado a 4 MB e desaparece ao terminar o save. Para máxima velocidade, use `synsaveinstance({ Decompile = false, RecoverScriptsFromAssets = false, SaveBytecode = false })`.
+Para reduzir o uso de memória no mobile, o bytecode não é anexado ao `Source`, o cache fica desligado por padrão, o render 3D é pausado durante o save e fontes acima de 2 MB são limitadas sem inserir mensagem no código salvo. O dump libera memória entre scripts e pausa a decompilação após três falhas consecutivas. Se quiser cache temporário, use `scriptcache = true`; ele é limitado a 4 MB e desaparece ao terminar o save. Para máxima velocidade, use `synsaveinstance({ Decompile = false, RecoverScriptsFromAssets = false, SaveBytecode = false })`.
 
 Nenhum executor consegue garantir literalmente 100% do conteúdo: scripts server-side filtrados pelo Roblox, propriedades protegidas, instâncias não replicadas e APIs ausentes do executor continuam fora do alcance. Nesses casos o arquivo registra um comentário explicando a limitação ou inclui bytecode quando `SaveBytecode` estiver disponível.
 ## Atualização obrigatória do arquivo remoto
