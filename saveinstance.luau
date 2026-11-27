@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 --!divine-intellect
--- USSI_BUILD_ID: 2026.11.27-low-memory-2
+-- USSI_BUILD_ID: 2026.11.27-low-memory-3
 -- https://discord.gg/wx4ThpAsmw
 
 local function string_find(s, pattern, init)
@@ -178,7 +178,7 @@ end) then
 end
 
 local CLIENT_VERSION = tonumber(string.match(FULL_VERSION, "%d+%.(%d+)")) or 9e9
-warn("[USSI] Build 2026.11.27-low-memory-2 loaded | Studio: " .. tostring(FULL_VERSION))
+warn("[USSI] Build 2026.11.27-low-memory-3 loaded | Studio: " .. tostring(FULL_VERSION))
 local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
 local USSI_FOLDER = "ussi_cache/"
 
@@ -186,6 +186,35 @@ pcall(function()
 	makefolder(USSI_FOLDER)
 end)
 
+-- Persistent diagnostics use a relative path, so the executor stores the file in its Workspace.
+local USSI_LOG_FILE = USSI_FOLDER .. "USSI_last_session.log"
+local ussiLogBuffer = ""
+local ussiLogReady = false
+local function ussiLog(event, details)
+    pcall(function()
+        if type(writefile) ~= "function" then return end
+        local line = os.date("[%Y-%m-%d %H:%M:%S]") .. " " .. tostring(event)
+        if details and details ~= "" then
+            line ..= " " .. tostring(details):gsub("[\r\n]", " ")
+        end
+        line ..= "\n"
+        if not ussiLogReady then
+            ussiLogBuffer = ""
+            -- Start a fresh session log; the path is relative to the executor Workspace.
+            writefile(USSI_LOG_FILE, "")
+            ussiLogReady = true
+        end
+        ussiLogBuffer ..= line
+        if #ussiLogBuffer > 256 * 1024 then
+            ussiLogBuffer = string.sub(ussiLogBuffer, -192 * 1024)
+        end
+        if type(appendfile) == "function" then
+            appendfile(USSI_LOG_FILE, line)
+        else
+            writefile(USSI_LOG_FILE, ussiLogBuffer)
+        end
+    end)
+end
 local REFLECTION_FILTER = {
 	Security = SecurityCapabilities.new(unpack(Enum.SecurityCapability:GetEnumItems())),
 	ExcludeDisplay = true,
@@ -4108,6 +4137,7 @@ local function synsaveinstance(...)
 			XML = "Binary",
 		},
 	}
+	ussiLog("SESSION_START", "build=2026.11.27-low-memory-3 executor=" .. tostring(EXECUTOR_NAME))
 	local OPTIONS_lowercase, OptionsAliasesInverse_lowercase, SaveInstanceOptions_valid = {}, {}, {}
 
 	do
@@ -6236,6 +6266,7 @@ local function synsaveinstance(...)
 	end
 
 	local function save_game()
+		ussiLog("STAGE", "collect")
 		SaveNotCreatable = SaveNotCreatable
 			or IsolateLocalPlayer
 			or IsolatePlayers
@@ -6561,6 +6592,7 @@ local function synsaveinstance(...)
 		end
 		ctx.mainRoots = mainRoots
 
+		ussiLog("STAGE", "serialize")
 		local chunks = OPTIONS.Binary and emitBinary(ctx) or emitXML(ctx)
 
 		attributeRefOfHandle = nil
@@ -6569,6 +6601,7 @@ local function synsaveinstance(...)
 			stampElapsed(chunks, os.clock() - elapse_t)
 		end
 
+		ussiLog("STAGE", "write")
 		if CopyToClipboard then
 			setrbxclipboard(table.concat(chunks))
 		elseif Callback then
@@ -7332,8 +7365,11 @@ local function synsaveinstance(...)
 	local ExtraTime = 10
 
 	if not ok then
+		ussiLog("FATAL", tostring(err))
 		warn("Error found while saving:")
 		warn(err)
+	else
+		ussiLog("SESSION_END", "SUCCESS duration=" .. string.format("%.3f", elapse_t) .. " file=" .. tostring(placename))
 	end
 	if StatusText then
 		task.spawn(function()

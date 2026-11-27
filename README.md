@@ -61,3 +61,8 @@ Ao carregar o módulo corrigido, o console mostra uma mensagem `[USSI] Build ...
 - Cache local do API Dump validado antes de ser aceito.
 - Dumpers Python usam downloader compartilhado com timeout, retries, validação de JSON e fallback para versões recentes do `DeployHistory.txt`.
 - `Run Dumpers.py` apresenta resumo e retorna código de falha quando algum dumper falha.
+
+
+## Log persistente
+
+O save grava o diagnóstico em `ussi_cache/USSI_last_session.log`, caminho relativo salvo no Workspace do executor, junto dos arquivos do save. O log registra início, etapas, falhas e término; se o executor não oferecer `writefile` ou `appendfile`, o save continua sem log.

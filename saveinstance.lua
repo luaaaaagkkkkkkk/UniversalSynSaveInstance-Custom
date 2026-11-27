@@ -1,6 +1,6 @@
 -- Launcher for UniversalSynSaveInstance.
 local RepoURL = "https://raw.githubusercontent.com/luaaaaagkkkkkkk/UniversalSynSaveInstance-Custom/main/"
-local BUILD_ID = "2026.11.27-low-memory-2"
+local BUILD_ID = "2026.11.27-low-memory-3"
 local SourceURL = RepoURL .. "saveinstance.luau?build=" .. BUILD_ID
 
 local ok, source = pcall(game.HttpGet, game, SourceURL, true)
