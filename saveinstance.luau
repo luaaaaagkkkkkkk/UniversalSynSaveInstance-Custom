@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 --!divine-intellect
--- USSI_BUILD_ID: 2026.11.27-mobile-safe-1
+-- USSI_BUILD_ID: 2026.11.27-low-memory-1
 -- https://discord.gg/wx4ThpAsmw
 
 local function string_find(s, pattern, init)
@@ -178,7 +178,7 @@ end) then
 end
 
 local CLIENT_VERSION = tonumber(string.match(FULL_VERSION, "%d+%.(%d+)")) or 9e9
-warn("[USSI] Build 2026.11.27-mobile-safe-1 loaded | Studio: " .. tostring(FULL_VERSION))
+warn("[USSI] Build 2026.11.27-low-memory-1 loaded | Studio: " .. tostring(FULL_VERSION))
 local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
 local USSI_FOLDER = "ussi_cache/"
 
@@ -3791,7 +3791,8 @@ end
 --- @field ReadMe boolean -- Add a README script to the save. It contains save details (place ID, date, time, platform, executor, recovered scripts, warnings) and tips. ___Default:___ true
 --- @field Decompile boolean -- Turn the compiled script back into source code (decompile). This replaces the `Source` of each [LuaSourceContainer] with decompiled code. If this is off, `Source` says decompiling is disabled. ___Default:___ true
 --- @field SaveBytecode boolean -- If the executor supports `getscriptbytecode`, add the compiled script data (bytecode) to `Source` as a comment. You can decompile it later. This respects `DecompileIgnore`. ___Default:___ false
---- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 10
+--- @field DecompileTimeout number -- How many seconds one decompile call can take. If it takes longer, the script stops waiting and writes a timeout message in `Source`. Set to -1 to disable the timeout. ___Default:___ 6
+--- @field DecompileMaxSourceBytes number -- Maximum source text retained for one decompiled script. Larger outputs are truncated with a notice to protect mobile memory; set to -1 for unlimited. ___Default:___ 2097152
 --- @field BytecodeTimeout number -- How many seconds a `getscriptbytecode` call can take. If it takes longer, the script stops waiting and skips the bytecode for that script. Set to -1 to disable the timeout. ___Default:___ 5
 --- @field DecompileIgnore {Instance | string} | {[Instance | string]: boolean | {[string]: boolean}} -- Skip decompiling matched [Instance]s and their children. `Source` becomes a short ignored message. You can pass an [Instance], a class name, or `ClassName = {Name1, Name2}`. Set an [Instance] to `false` to skip only that instance, not its children. ___Default:___ {}
 --- @field SourceCache {[Instance]: string} | false -- Source text to use for these scripts as-is instead of decompiling them. ___Default:___ false
@@ -3911,7 +3912,7 @@ end
 
 	local synsaveinstance = loadstring(game:HttpGet(Params.RepoURL .. Params.SSI .. ".luau", true), Params.SSI)()
 
-	local SaveInstanceOptions = { SafeMode = true, DecompileTimeout = 15, SaveBytecode = true }
+	local SaveInstanceOptions = { SafeMode = true, DecompileTimeout = 15, SaveBytecode = false }
 
 	synsaveinstance(SaveInstanceOptions)
 	```
@@ -3955,7 +3956,8 @@ local function synsaveinstance(...)
 		CompressionMode = false,
 		CompressionLevel = 9,
 		Decompile = true,
-		DecompileTimeout = 10,
+		DecompileTimeout = 6,
+		DecompileMaxSourceBytes = 2 * 1024 * 1024,
 		DecompileJobless = false,
 		RecoverScriptsFromAssets = true,
 		-- decomptype = "",
@@ -3982,11 +3984,11 @@ local function synsaveinstance(...)
 		NilInstances = false,
 		NilInstancesFixes = {},
 
-		SaveCacheInterval = 0x1600 * 10,
+		SaveCacheInterval = 0x1600 * 2,
 		ShowStatus = true,
 		KillAllScripts = false,
 		SafeMode = false,
-		BoostFPS = false,
+		BoostFPS = true,
 		ShutdownWhenDone = false,
 		AntiIdle = true,
 		Anonymous = false,
@@ -4900,6 +4902,12 @@ local function synsaveinstance(...)
 	-- Keep the bytecode obtained during decompilation so SaveBytecode does not
 	-- call the executor API a second time for the same script.
 	local bytecodeByScript = setmetatable({}, { __mode = "k" })
+	local DecompileMaxSourceBytes = tonumber(OPTIONS.DecompileMaxSourceBytes) or 2 * 1024 * 1024
+	local decompileFailureStreak = 0
+	local decompileCircuitOpen = false
+	local function decompileGcStep()
+		pcall(collectgarbage, "step", 200)
+	end
 
 	local SaveBytecode
 	if OPTIONS.SaveBytecode and getscriptbytecode then
@@ -4962,19 +4970,32 @@ local function synsaveinstance(...)
 				-- task.wait() -- TODO Maybe remove?
 			end
 
+			if decompileCircuitOpen then
+				return "--[[ Decompile paused after repeated failures to protect memory. ]]"
+			end
+			decompileGcStep()
 			local ok, result = run_with_loading("Decompiling " .. script.Name, true, nil, decomp, script)
 			if not result then
 				ok, result = false, "Empty Output"
 			end
-
 			local output
-			if ok then
-				result = string.gsub(result, "\0", "\\0") -- ? Some decompilers sadly output \0 which prevents files from opening
+			if ok and type(result) == "string" then
+				decompileFailureStreak = 0
+				result = string.gsub(result, "\0", "\\0")
+				if DecompileMaxSourceBytes >= 0 and #result > DecompileMaxSourceBytes then
+					result = string.sub(result, 1, DecompileMaxSourceBytes)
+						.. "\n\n-- [USSI] Source truncated to protect mobile memory. Set DecompileMaxSourceBytes = -1 for unlimited."
+				end
 				output = result
 			else
-				output = "--[[ Failed to decompile. Reason:\n" .. (result or "") .. "\n]]"
+				decompileFailureStreak += 1
+				if decompileFailureStreak >= 3 then
+					decompileCircuitOpen = true
+					warn("[USSI] Decompile paused after 3 consecutive failures/timeouts to protect memory")
+				end
+				output = "--[[ Failed to decompile. Reason:\n" .. tostring(result or "") .. "\n]]"
 			end
-
+			decompileGcStep()
 			if ScriptCache and bytecode then -- Do not retain very large scripts on mobile.
 				local entryBytes = #bytecode + #output
 				if entryBytes <= ScriptCacheMaxBytes and scriptCacheBytes + entryBytes <= ScriptCacheMaxBytes then

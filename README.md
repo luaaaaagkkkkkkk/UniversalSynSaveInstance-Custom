@@ -25,11 +25,12 @@ Consulte [`LICENSE`](LICENSE) para os termos e atribuições.
 
 O padrão agora tenta decompilar os scripts e recuperar fontes publicadas como assets. Para reduzir o uso de memória em celulares, o bytecode não é anexado ao código e o cache pesado fica desligado por padrão. Para máxima velocidade, você pode passar `Decompile = false`.
 
-Para priorizar completude em vez de velocidade, use este perfil explícito. Ele evita a lista padrão de exclusões, tenta decompilar todos os scripts acessíveis, recupera fontes publicadas como assets, salva bytecode como fallback e lê propriedades especiais:
+Para priorizar completude em vez de velocidade, use este perfil explícito. Ele evita a lista padrão de exclusões, tenta decompilar todos os scripts acessíveis, recupera fontes publicadas como assets e lê propriedades especiais sem anexar bytecode:
 ```lua
 synsaveinstance({
     Decompile = true,
-    DecompileTimeout = 10,
+    DecompileTimeout = 6,
+    DecompileMaxSourceBytes = 2 * 1024 * 1024,
     BytecodeTimeout = 10,
     scriptcache = false,
     SaveBytecode = false,
@@ -44,7 +45,7 @@ synsaveinstance({
     CompressionMode = false,
 })
 ```
-Para reduzir o uso de memória no mobile, o bytecode não é anexado ao `Source` e o cache fica desligado por padrão. Se quiser cache temporário, use `scriptcache = true`; ele é limitado a 4 MB e desaparece ao terminar o save. Para máxima velocidade, use `synsaveinstance({ Decompile = false, RecoverScriptsFromAssets = false, SaveBytecode = false })`.
+Para reduzir o uso de memória no mobile, o bytecode não é anexado ao `Source`, o cache fica desligado por padrão, o render 3D é pausado durante o save e fontes acima de 2 MB são limitadas. O dump libera memória entre scripts e pausa a decompilação após três falhas consecutivas. Se quiser cache temporário, use `scriptcache = true`; ele é limitado a 4 MB e desaparece ao terminar o save. Para máxima velocidade, use `synsaveinstance({ Decompile = false, RecoverScriptsFromAssets = false, SaveBytecode = false })`.
 
 Nenhum executor consegue garantir literalmente 100% do conteúdo: scripts server-side filtrados pelo Roblox, propriedades protegidas, instâncias não replicadas e APIs ausentes do executor continuam fora do alcance. Nesses casos o arquivo registra um comentário explicando a limitação ou inclui bytecode quando `SaveBytecode` estiver disponível.
 ## Atualização obrigatória do arquivo remoto
