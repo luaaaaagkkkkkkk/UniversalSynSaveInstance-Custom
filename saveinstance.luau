@@ -1,7 +1,7 @@
 --!native
 --!optimize 2
 --!divine-intellect
--- USSI_BUILD_ID: 2026.11.25-decompile-cache-1
+-- USSI_BUILD_ID: 2026.11.27-mobile-safe-1
 -- https://discord.gg/wx4ThpAsmw
 
 local function string_find(s, pattern, init)
@@ -178,7 +178,7 @@ end) then
 end
 
 local CLIENT_VERSION = tonumber(string.match(FULL_VERSION, "%d+%.(%d+)")) or 9e9
-warn("[USSI] Build 2026.11.25-decompile-cache-1 loaded | Studio: " .. tostring(FULL_VERSION))
+warn("[USSI] Build 2026.11.27-mobile-safe-1 loaded | Studio: " .. tostring(FULL_VERSION))
 local __BREAK = "__BREAK" .. service.HttpService:GenerateGUID(false)
 local USSI_FOLDER = "ussi_cache/"
 
@@ -3796,7 +3796,8 @@ end
 --- @field DecompileIgnore {Instance | string} | {[Instance | string]: boolean | {[string]: boolean}} -- Skip decompiling matched [Instance]s and their children. `Source` becomes a short ignored message. You can pass an [Instance], a class name, or `ClassName = {Name1, Name2}`. Set an [Instance] to `false` to skip only that instance, not its children. ___Default:___ {}
 --- @field SourceCache {[Instance]: string} | false -- Source text to use for these scripts as-is instead of decompiling them. ___Default:___ false
 --- @field DecompileJobless boolean -- Only use scripts that are already in the decompile cache. Missing scripts get a short not-found message. This turns on `scriptcache`. ___Default:___ false
---- @field scriptcache boolean -- If the executor supports `getscriptbytecode`, cache decompiled code. This avoids decompiling the same script twice. The cache stays after the script reloads. ___Default:___ true
+--- @field scriptcache boolean -- If the executor supports `getscriptbytecode`, cache decompiled code during this save. Disabled by default to reduce mobile memory usage. ___Default:___ false
+--- @field ScriptCacheMaxBytes number -- Maximum combined bytecode and decompiled text retained by the temporary cache. Larger scripts are still decompiled but are not cached. ___Default:___ 4194304
 --- @field RecoverScriptsFromAssets boolean -- Recover the original `Source` of scripts that were published as assets. Changes made after publishing are not included. ___Default:___ true
 --- @field IsolatePlayers boolean -- Put every [Player] under a top-level `"Players"` Folder instead of inside the [Players] service. This turns on `SaveNotCreatable`. If both are on, this option is used instead of `IsolateLocalPlayer`. ___Default:___ false
 --- @field IsolateLocalPlayer boolean -- Save the LocalPlayer as a Folder named `"LocalPlayer"` instead of a [Player] object. This is ignored if `IsolatePlayers` is on. ___Default:___ false
@@ -3958,8 +3959,9 @@ local function synsaveinstance(...)
 		DecompileJobless = false,
 		RecoverScriptsFromAssets = true,
 		-- decomptype = "",
-		scriptcache = true,
-		SaveBytecode = true,
+		scriptcache = false,
+		SaveBytecode = false,
+		ScriptCacheMaxBytes = 4 * 1024 * 1024,
 		BytecodeTimeout = 5,
 		SourceCache = false,
 
@@ -4885,12 +4887,11 @@ local function synsaveinstance(...)
 		OPTIONS.scriptcache = true
 	end
 	local ScriptCache = OPTIONS.scriptcache and getscriptbytecode
-	local ldeccache = ScriptCache and USSI.ScriptCache
-
-	if ScriptCache and not ldeccache then
-		ldeccache = {}
-		USSI.ScriptCache = ldeccache
-	end
+	-- Keep this cache only for the current save. A persistent cache can retain
+	-- megabytes of bytecode between runs and is unsafe on mobile devices.
+	local ldeccache = ScriptCache and {}
+	local ScriptCacheMaxBytes = math.max(0, tonumber(OPTIONS.ScriptCacheMaxBytes) or 4 * 1024 * 1024)
+	local scriptCacheBytes = 0
 
 	local getbytecode
 	if getscriptbytecode then
@@ -4937,7 +4938,9 @@ local function synsaveinstance(...)
 					if not bytecode or bytecode == "" then
 						return "-- The Script is Empty"
 					end
-					bytecodeByScript[script] = bytecode
+					if OPTIONS.SaveBytecode then
+						bytecodeByScript[script] = bytecode
+					end
 					cached = ldeccache[bytecode]
 				else
 					bytecode = nil
@@ -4972,10 +4975,14 @@ local function synsaveinstance(...)
 				output = "--[[ Failed to decompile. Reason:\n" .. (result or "") .. "\n]]"
 			end
 
-			if ScriptCache and bytecode then -- TODO there might(?) be an edgecase where it manages to decompile (built-in) even though getscriptbytecode failed, and the output won't get cached
-				ldeccache[bytecode] = output -- ? Should we cache even if it timed out?
-				if __DEBUG_MODE then
-					__DEBUG_MODE("Cached", script:GetFullName())
+			if ScriptCache and bytecode then -- Do not retain very large scripts on mobile.
+				local entryBytes = #bytecode + #output
+				if entryBytes <= ScriptCacheMaxBytes and scriptCacheBytes + entryBytes <= ScriptCacheMaxBytes then
+					ldeccache[bytecode] = output
+					scriptCacheBytes += entryBytes
+					if __DEBUG_MODE then
+						__DEBUG_MODE("Cached", script:GetFullName())
+					end
 				end
 			end
 
